@@ -1,17 +1,12 @@
 #include <windows.h>
 #include <iostream>
 
-#pragma pack(1)
-struct WRITE_MSR_STRUCT
-{
-	unsigned long IdMSR;
-	unsigned __int64 ValueMSR;
-};
+#include "openhardwaremonitor_defs.h"
 
 bool ReadMsr( HANDLE hDevice, unsigned long index, unsigned __int64* pOutput )
 {
 	DWORD Returned { };
-	return hDevice != nullptr && DeviceIoControl( hDevice, 0x9C402084, &index, sizeof( index ),
+	return hDevice != nullptr && DeviceIoControl( hDevice, READ_MSR_IOCTL, &index, sizeof( index ),
 												  pOutput, sizeof( *pOutput ), &Returned, nullptr );
 }
 
@@ -22,7 +17,7 @@ bool WriteMsr( HANDLE hDevice, unsigned long index, unsigned __int64 value )
 	wMsr.ValueMSR = value;
 
 	DWORD Returned { };
-	return hDevice != nullptr && DeviceIoControl( hDevice, 0x9C402088, &wMsr, sizeof( wMsr ),
+	return hDevice != nullptr && DeviceIoControl( hDevice, WRITE_MSR_IOCTL, &wMsr, sizeof( wMsr ),
 												  nullptr, NULL, &Returned, nullptr );
 }
 
